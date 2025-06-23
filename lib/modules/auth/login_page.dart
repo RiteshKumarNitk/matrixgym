@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:go_router/go_router.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -9,64 +12,52 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _phoneController = TextEditingController();
-  final _otpController = TextEditingController();
-
-  String? _verificationId;
-  bool _otpSent = false;
   bool _loading = false;
 
-  final _auth = FirebaseAuth.instance;
-
-  void _sendOTP() async {
-    setState(() => _loading = true);
-    await _auth.verifyPhoneNumber(
-      phoneNumber: '+91${_phoneController.text.trim()}',
-      timeout: const Duration(seconds: 60),
-      verificationCompleted: (PhoneAuthCredential credential) async {
-        // Auto-retrieval or instant verification
-        await _auth.signInWithCredential(credential);
-        _goToDashboard();
-      },
-      verificationFailed: (FirebaseAuthException e) {
-        setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Verification failed: ${e.message}'),
-        ));
-      },
-      codeSent: (String verificationId, int? resendToken) {
-        setState(() {
-          _otpSent = true;
-          _verificationId = verificationId;
-          _loading = false;
-        });
-      },
-      codeAutoRetrievalTimeout: (String verificationId) {
-        _verificationId = verificationId;
-      },
-    );
-  }
-
-  void _verifyOTP() async {
-    setState(() => _loading = true);
-    final credential = PhoneAuthProvider.credential(
-      verificationId: _verificationId!,
-      smsCode: _otpController.text.trim(),
-    );
-
+  Future<void> _signInWithGoogle() async {
     try {
-      await _auth.signInWithCredential(credential);
-      _goToDashboard();
-    } catch (e) {
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid OTP. Please try again.')),
+      setState(() => _loading = true);
+
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) {
+        setState(() => _loading = false);
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
       );
+
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+
+      // Save intro flag
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('seen_intro', true);
+
+      // Navigate to dashboard with user data
+      context.go('/dashboard', extra: {
+        'name': userCredential.user?.displayName ?? '',
+        'email': userCredential.user?.email ?? '',
+        'photoUrl': userCredential.user?.photoURL ?? '',
+      });
+    } catch (e) {
+      debugPrint('Google Sign-In Error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sign-In Failed: $e')),
+      );
+    } finally {
+      setState(() => _loading = false);
     }
   }
 
-  void _goToDashboard() {
-    Navigator.pushReplacementNamed(context, '/dashboard'); // Or use GoRouter
+  void _skipLogin() {
+    context.go('/dashboard', extra: {
+      'name': 'Guest User',
+      'email': '',
+      'photoUrl': '',
+    });
   }
 
   @override
@@ -74,26 +65,31 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Login')),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(24),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            TextField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'Phone Number'),
-            ),
-            if (_otpSent)
-              TextField(
-                controller: _otpController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Enter OTP'),
-              ),
-            const SizedBox(height: 20),
+            const FlutterLogo(size: 100),
+            const SizedBox(height: 40),
             _loading
                 ? const CircularProgressIndicator()
-                : ElevatedButton(
-                    onPressed: _otpSent ? _verifyOTP : _sendOTP,
-                    child: Text(_otpSent ? 'Verify OTP' : 'Send OTP'),
+                : Column(
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _signInWithGoogle,
+                        icon: const Icon(Icons.login),
+                        label: const Text('Continue with Google'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 48),
+                          side: const BorderSide(color: Colors.blue),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextButton(
+                        onPressed: _skipLogin,
+                        child: const Text('Skip for now'),
+                      ),
+                    ],
                   ),
           ],
         ),

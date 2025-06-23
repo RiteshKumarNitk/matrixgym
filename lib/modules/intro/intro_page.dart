@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 
 class IntroPage extends StatefulWidget {
   const IntroPage({super.key});
@@ -33,33 +31,7 @@ class _IntroPageState extends State<IntroPage> {
   Future<void> _finishIntro() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('seen_intro', true);
-    context.go('/login'); // Navigates to email login page
-  }
-
-  Future<void> _signInWithGoogle() async {
-    try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) return; // User canceled
-
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      await FirebaseAuth.instance.signInWithCredential(credential);
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('seen_intro', true);
-
-      context.go('/dashboard'); // Navigate after successful sign-in
-    } catch (e) {
-      debugPrint('Google Sign-In Error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sign-In Failed: $e')),
-      );
-    }
+    context.go('/login');
   }
 
   @override
@@ -89,34 +61,11 @@ class _IntroPageState extends State<IntroPage> {
                   style: const TextStyle(fontSize: 16),
                 ),
                 const SizedBox(height: 40),
-                if (index == _pages.length - 1) ...[
+                if (index == _pages.length - 1)
                   ElevatedButton(
                     onPressed: _finishIntro,
                     child: const Text('Get Started'),
                   ),
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    onPressed: _signInWithGoogle,
-                    icon: const Icon(Icons.login),
-                    label: const Text('Continue with Google'),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                      side: const BorderSide(color: Colors.blue),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      context.go('/login'); // Route to your Email Login screen
-                    },
-                    icon: const Icon(Icons.email),
-                    label: const Text('Continue with Email'),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                      side: const BorderSide(color: Colors.grey),
-                    ),
-                  ),
-                ],
               ],
             ),
           );

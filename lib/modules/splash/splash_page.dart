@@ -16,17 +16,18 @@ class _SplashPageState extends State<SplashPage> {
     _navigate();
   }
 
-  Future<void> _navigate() async {
-    await Future.delayed(const Duration(seconds: 2)); // splash delay
+  bool _navigated = false;
 
+  Future<void> _navigate() async {
+    if (_navigated) return;
+    _navigated = true;
+
+    await Future.delayed(const Duration(seconds: 2));
     final prefs = await SharedPreferences.getInstance();
     final seenIntro = prefs.getBool('seen_intro') ?? false;
 
-    if (seenIntro) {
-      context.go('/login');
-    } else {
-      context.go('/intro');
-    }
+    if (!mounted) return;
+    context.go(seenIntro ? '/login' : '/intro');
   }
 
   @override
