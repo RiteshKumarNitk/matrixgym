@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -9,96 +9,93 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailCtrl = TextEditingController();
-  final TextEditingController _passwordCtrl = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _otpController = TextEditingController();
 
-  bool _isLoading = false;
+  String? _verificationId;
+  bool _otpSent = false;
+  bool _loading = false;
 
-  void _login() {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
+  final _auth = FirebaseAuth.instance;
 
-      // Simulate login success
-      Future.delayed(const Duration(seconds: 1), () {
-        setState(() => _isLoading = false);
+  void _sendOTP() async {
+    setState(() => _loading = true);
+    await _auth.verifyPhoneNumber(
+      phoneNumber: '+91${_phoneController.text.trim()}',
+      timeout: const Duration(seconds: 60),
+      verificationCompleted: (PhoneAuthCredential credential) async {
+        // Auto-retrieval or instant verification
+        await _auth.signInWithCredential(credential);
+        _goToDashboard();
+      },
+      verificationFailed: (FirebaseAuthException e) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Verification failed: ${e.message}'),
+        ));
+      },
+      codeSent: (String verificationId, int? resendToken) {
+        setState(() {
+          _otpSent = true;
+          _verificationId = verificationId;
+          _loading = false;
+        });
+      },
+      codeAutoRetrievalTimeout: (String verificationId) {
+        _verificationId = verificationId;
+      },
+    );
+  }
 
-        // Navigate to dashboard
-        context.go('/dashboard');
-      });
+  void _verifyOTP() async {
+    setState(() => _loading = true);
+    final credential = PhoneAuthProvider.credential(
+      verificationId: _verificationId!,
+      smsCode: _otpController.text.trim(),
+    );
+
+    try {
+      await _auth.signInWithCredential(credential);
+      _goToDashboard();
+    } catch (e) {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid OTP. Please try again.')),
+      );
     }
   }
 
-  @override
-  void dispose() {
-    _emailCtrl.dispose();
-    _passwordCtrl.dispose();
-    super.dispose();
+  void _goToDashboard() {
+    Navigator.pushReplacementNamed(context, '/dashboard'); // Or use GoRouter
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: Card(
-          elevation: 4,
-          margin: const EdgeInsets.symmetric(horizontal: 24),
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Gym Admin Login',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Email
-                  TextFormField(
-                    controller: _emailCtrl,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) return 'Enter email';
-                      if (!value.contains('@')) return 'Invalid email';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Password
-                  TextFormField(
-                    controller: _passwordCtrl,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Password'),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) return 'Enter password';
-                      if (value.length < 4) return 'Password too short';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Login Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _login,
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Text('Login'),
-                    ),
-                  )
-                ],
-              ),
+      appBar: AppBar(title: const Text('Login')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            TextField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Phone Number'),
             ),
-          ),
+            if (_otpSent)
+              TextField(
+                controller: _otpController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Enter OTP'),
+              ),
+            const SizedBox(height: 20),
+            _loading
+                ? const CircularProgressIndicator()
+                : ElevatedButton(
+                    onPressed: _otpSent ? _verifyOTP : _sendOTP,
+                    child: Text(_otpSent ? 'Verify OTP' : 'Send OTP'),
+                  ),
+          ],
         ),
       ),
     );

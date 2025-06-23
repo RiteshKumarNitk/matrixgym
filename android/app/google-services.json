@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "956912794113",
+    "project_id": "matrixgym-81d6f",
+    "storage_bucket": "matrixgym-81d6f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:956912794113:android:c9d7c108874e5c21a8de00",
+        "android_client_info": {
+          "package_name": "com.example.matrixgym"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDCJORVVlysUWKIhKMbI6ytbX3cVeDLDxs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
